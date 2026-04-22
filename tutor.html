@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CS Code Tutor</title>
+
+    <!-- Markdown parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 40px;
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: #ffffff;
+        }
+
+        #container {
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        textarea {
+            width: 100%;
+            height: 300px;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            font-size: 16px;
+            resize: vertical;
+            outline: none;
+            transition: 0.2s;
+            font-family: Consolas, monospace;
+        }
+
+        textarea:focus {
+            border-color: #4caf50;
+            box-shadow: 0 0 8px #4caf50;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 12px 25px;
+            background-color: #4caf50;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #responseBox, #followupResponse {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        hr {
+            border: 0;
+            border-top: 1px solid #333;
+            margin: 40px 0;
+        }
+
+        .loading {
+            margin-top: 10px;
+            color: #4caf50;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <h1>CS Code Tutor</h1>
+
+        <!-- MAIN CODE INPUT -->
+        <textarea id="code" placeholder="Paste your code here..."></textarea>
+        <button onclick="sendCode()">Explain Code</button>
+        <div id="loadingMain" class="loading">Loading...</div>
+
+        <!-- AI EXPLANATION OUTPUT -->
+        <div id="responseBox">Your explanation will appear here.</div>
+
+        <hr>
+
+        <!-- FOLLOW-UP QUESTION INPUT -->
+        <h2>Have questions about the explanation?</h2>
+        <textarea id="followup" style="height:150px;" placeholder="Ask a follow-up question..."></textarea>
+        <button onclick="sendFollowup()">Ask Question</button>
+        <div id="loadingFollowup" class="loading">Loading...</div>
+
+        <!-- FOLLOW-UP RESPONSE -->
+        <div id="followupResponse"></div>
+    </div>
+
+    <script>
+        // --- SEND MAIN CODE TO AI ---
+        function sendCode() {
+            const code = document.getElementById("code").value;
+            document.getElementById("loadingMain").style.display = "block";
+
+            fetch("/process", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ response: code })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("responseBox").innerHTML = marked.parse(data.message);
+            })
+            .finally(() => {
+                document.getElementById("loadingMain").style.display = "none";
+            });
+        }
+
+        // --- SEND FOLLOW-UP QUESTION TO AI ---
+        function sendFollowup() {
+            const explanation = document.getElementById("responseBox").innerText;
+            const question = document.getElementById("followup").value;
+            document.getElementById("loadingFollowup").style.display = "block";
+
+            fetch("/followup", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ explanation, question })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("followupResponse").innerHTML = marked.parse(data.message);
+            })
+            .finally(() => {
+                document.getElementById("loadingFollowup").style.display = "none";
+            });
+        }
+
+        // --- SHARED CODE EDITOR FEATURES: TAB, SHIFT+TAB, AUTO INDENT ---
+        function attachEditorBehavior(textarea) {
+            textarea.addEventListener("keydown", function(e) {
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                const value = this.value;
+
+                // TAB
+                if (e.key === "Tab" && !e.shiftKey) {
+                    e.preventDefault();
+                    this.value = value.substring(0, start) + "\t" + value.substring(end);
+                    this.selectionStart = this.selectionEnd = start + 1;
+                }
+
+                // SHIFT + TAB (UNINDENT)
+                if (e.key === "Tab" && e.shiftKey) {
+                    e.preventDefault();
+                    let lineStart = value.lastIndexOf("\n", start - 1) + 1;
+
+                    if (value.substring(lineStart, lineStart + 1) === "\t") {
+                        this.value = value.substring(0, lineStart) +
+                                     value.substring(lineStart + 1);
+                        this.selectionStart = start - 1;
+                        this.selectionEnd = end - 1;
+                    }
+                }
+
+                // AUTO INDENT ON ENTER
+                if (e.key === "Enter") {
+                    e.preventDefault();
+
+                    let lineStart = value.lastIndexOf("\n", start - 1) + 1;
+                    let currentLine = value.substring(lineStart, start);
+                    let indent = currentLine.match(/^\s*/)[0];
+
+                    this.value =
+                        value.substring(0, start) +
+                        "\n" + indent +
+                        value.substring(end);
+
+                    this.selectionStart = this.selectionEnd = start + 1 + indent.length;
+                }
+            });
+        }
+
+        // Attach behavior to BOTH textareas
+        attachEditorBehavior(document.getElementById("code"));
+        attachEditorBehavior(document.getElementById("followup"));
+    </script>
+
+</body>
+</html>
